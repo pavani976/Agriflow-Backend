@@ -2,19 +2,28 @@ import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
 import Groq from "groq-sdk"
-import buyersRoutes from './routes/buyers.js'
+import buyersRoutes from "./routes/buyers.js"
+
 dotenv.config()
 
 const app = express()
+
 app.use(cors())
 app.use(express.json())
-app.use('/api/buyers', buyersRoutes)
+
+app.use("/api/buyers", buyersRoutes)
+
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 })
 
 // 🧠 Chat memory
 const chatHistory = {}
+
+// ✅ Health Check Route
+app.get("/", (req, res) => {
+  res.send("AgriFlow backend is running ✅")
+})
 
 app.post("/api/ai/chat", async (req, res) => {
   try {
@@ -28,12 +37,12 @@ app.post("/api/ai/chat", async (req, res) => {
 
     let userMessage = message
 
-    // ✅ TRANSLATION FIX
+    // ✅ Translation Fix
     if (/^in\s+(telugu|hindi|tamil)$/i.test(message.trim()) && lastMessage) {
       userMessage = `Translate this into ${message.replace("in", "").trim()}:\n${lastMessage.content}`
     }
 
-    // 🧠 Save user message
+    // Save user message
     chatHistory[sessionId].push({
       role: "user",
       content: userMessage
@@ -41,7 +50,6 @@ app.post("/api/ai/chat", async (req, res) => {
 
     const history = chatHistory[sessionId].slice(-10)
 
-    // 🤖 AI CALL
     const response = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
@@ -53,8 +61,8 @@ You are a smart agriculture assistant for Indian farmers.
 Rules:
 - Always answer in SHORT (2 lines max)
 - Give REALISTIC Indian prices (₹ per kg)
-- No dollar pricing ❌
-- No long explanations ❌
+- No dollar pricing
+- No long explanations
 - Simple language
 - If crop asked → give price
 - If "in telugu/hindi/tamil" → translate ONLY
@@ -68,7 +76,7 @@ Rules:
       response.choices?.[0]?.message?.content ||
       "⚠️ No response from AI"
 
-    // 🧠 Save AI reply
+    // Save AI reply
     chatHistory[sessionId].push({
       role: "assistant",
       content: reply
@@ -79,7 +87,6 @@ Rules:
   } catch (error) {
     console.error("AI ERROR:", error)
 
-    // ✅ SAFE FALLBACK (NO ERROR SCREEN)
     const msg = req.body.message?.toLowerCase() || ""
 
     let fallback = "🤖 Ask about crops, prices, or farming tips."
@@ -97,6 +104,9 @@ Rules:
   }
 })
 
-app.listen(5000, () => {
-  console.log("✅ Server running on http://localhost:5000")
+// ✅ Render-Compatible Port
+const PORT = process.env.PORT || 5000
+
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`)
 })
